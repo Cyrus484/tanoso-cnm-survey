@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>College of Nursing and Midwifery, Tanoso - Survey Portal</title>
+  
+  <!-- Web App Manifest for PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#006B3F" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="CNM Surveys" />
+
+  <!-- Register Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => console.log('Service Worker registered! Scope:', reg.scope))
+          .catch((err) => console.log('Service Worker registration failed:', err));
+      });
+    }
+  </script>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            schoolGreen: {
+              DEFAULT: '#006B3F',
+              dark: '#004D2D',
+              light: '#E8F5E9',
+              accent: '#10B981',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- External Libraries: Chart.js, SheetJS (Excel), Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300 font-sans flex flex-col">
+
+  <!-- Main Navigation Header -->
+  <header class="bg-schoolGreen text-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="navigateToHome()">
+        <div class="w-10 h-10 bg-white text-schoolGreen rounded-full flex items-center justify-center font-extrabold text-lg shadow">
+          CNM
+        </div>
+        <div>
+          <h1 class="text-sm md:text-base font-bold leading-tight">
+            College of Nursing and Midwifery
+          </h1>
+          <p class="text-xs text-emerald-200">Tanoso — Survey Platform</p>
+        </div>
+      </div>
+
+      <!-- Action Navigation Tools -->
+      <div class="flex items-center space-x-2 md:space-x-3">
+        <!-- Install PWA App Button in Header -->
+        <button id="installHeaderBtn" onclick="installPWA()" class="hidden bg-white text-schoolGreen font-semibold px-2.5 py-1.5 rounded-lg text-xs shadow hover:bg-emerald-50 transition">
+          📲 Install App
+        </button>
+
+        <!-- Light / Dark Mode Button -->
+        <button onclick="toggleTheme()" class="p-2 rounded-lg border border-emerald-400 hover:bg-emerald-800 transition text-xs md:text-sm flex items-center gap-1">
+          <span id="themeIcon">🌙</span>
+          <span id="themeText" class="hidden md:inline">Dark Mode</span>
+        </button>
+
+        <!-- Change Password Button (Hidden when logged out) -->
+        <button id="changePassBtn" onclick="showChangePasswordModal()" class="hidden bg-emerald-800 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition shadow">
+          🔑 Change Password
+        </button>
+
+        <!-- Logout Button (Hidden when logged out) -->
+        <button id="logoutBtn" onclick="logout()" class="hidden bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition shadow">
+          🚪 Logout
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- PWA INSTALL POPUP / BANNER -->
+  <div id="pwaBanner" class="hidden bg-emerald-900 text-white px-4 py-3 shadow-xl border-b border-emerald-700 z-40 animate-bounce">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-2">
+      <div class="text-xs md:text-sm flex items-center gap-2">
+        <span class="text-lg">📱</span>
+        <span><strong>Install App on Device:</strong> Install the CNM Survey Portal on your phone or laptop for quick desktop/home-screen access!</span>
+      </div>
+      <div class="flex items-center space-x-2">
+        <button onclick="installPWA()" class="bg-white text-schoolGreen font-bold text-xs px-3 py-1.5 rounded shadow hover:bg-emerald-100 transition">
+          Install Now
+        </button>
+        <button onclick="closePWABanner()" class="text-emerald-300 text-xs hover:text-white px-2">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Body Container -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-6">
+
+    <!-- PORTAL SELECTION / LOGIN VIEW -->
+    <section id="loginSection" class="max-w-md mx-auto my-10 bg-white dark:bg-slate-800 p-6 md:p-8 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700">
+      <div class="text-center mb-6">
+        <h2 class="text-2xl font-bold text-schoolGreen dark:text-emerald-400">Portal Access</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Select your account role to log in</p>
+      </div>
+
+      <!-- Portal Selection Tabs -->
+      <div class="flex border-b border-slate-200 dark:border-slate-700 mb-6">
+        <button id="tabLecturer" onclick="switchLoginTab('lecturer')" class="flex-1 py-2 text-center font-semibold text-sm border-b-2 border-schoolGreen text-schoolGreen dark:text-emerald-400">
+          Lecturer Portal
+        </button>
+        <button id="tabAdmin" onclick="switchLoginTab('admin')" class="flex-1 py-2 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-600">
+          Admin Portal
+        </button>
+      </div>
+
+      <!-- Login Form -->
+      <form onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase mb-1">Username</label>
+          <input type="text" id="loginUsername" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:ring-2 focus:ring-schoolGreen outline-none text-sm" placeholder="Enter username">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase mb-1">Password</label>
+          <input type="password" id="loginPassword" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:ring-2 focus:ring-schoolGreen outline-none text-sm" placeholder="Enter password">
+        </div>
+        <button type="submit" class="w-full bg-schoolGreen hover:bg-emerald-800 text-white font-bold py-3 rounded-lg shadow-md transition duration-200 text-sm">
+          Log In
+        </button>
+      </form>
+    </section>
+
+    <!-- DASHBOARD VIEW (ADMIN & LECTURER) -->
+    <section id="dashboardSection" class="hidden space-y-6">
+      
+      <!-- Dashboard Top Header Bar -->
+      <div class="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-schoolGreen dark:text-emerald-400 flex items-center gap-2">
+            <span id="userRoleBadge" class="bg-emerald-100 text-schoolGreen text-xs px-2.5 py-1 rounded-full uppercase font-extrabold">Lecturer</span>
+            Welcome, <span id="userDisplayName">User</span>
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Manage surveys, review analytics, and generate links.</p>
+        </div>
+
+        <!-- Dashboard Quick Actions -->
+        <div class="flex flex-wrap gap-2">
+          <button onclick="showCreateSurveyModal()" class="bg-schoolGreen hover:bg-emerald-800 text-white font-semibold px-4 py-2 rounded-lg text-xs md:text-sm shadow transition">
+            ➕ Create Survey
+          </button>
+          <button onclick="showImportSurveyModal()" class="bg-slate-700 hover:bg-slate-800 text-white font-semibold px-4 py-2 rounded-lg text-xs md:text-sm shadow transition">
+            📥 Import Questionnaire
+          </button>
+          <button id="adminAddLecturerBtn" onclick="showAddLecturerModal()" class="hidden bg-emerald-700 hover:bg-emerald-800 text-white font-semibold px-4 py-2 rounded-lg text-xs md:text-sm shadow transition">
+            👨‍🏫 Manage Lecturers
+          </button>
+        </div>
+      </div>
+
+      <!-- Admin Management Panel: Lecturers List (Visible only to Admin) -->
+      <div id="adminLecturerPanel" class="hidden bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md border border-slate-200 dark:border-slate-700">
+        <h3 class="text-md font-bold mb-3 text-slate-700 dark:text-slate-200">Registered Lecturer Accounts</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-slate-200 dark:border-slate-700 text-slate-400">
+                <th class="py-2 px-3">Full Name</th>
+                <th class="py-2 px-3">Username</th>
+                <th class="py-2 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="lecturerTableBody">
+              <!-- Dynamically Populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Survey Cards List -->
+      <div class="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md border border-slate-200 dark:border-slate-700">
+        <h3 class="text-md font-bold mb-4 text-slate-700 dark:text-slate-200">Surveys & Questionnaires</h3>
+        <div id="surveysListContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Dynamically Populated -->
+        </div>
+      </div>
+    </section>
+
+    <!-- STUDENT DIRECT SURVEY VIEW (Google Form Style) -->
+    <section id="studentSurveySection" class="hidden max-w-2xl mx-auto space-y-6">
+      <div class="bg-white dark:bg-slate-800 border-t-8 border-schoolGreen p-6 rounded-xl shadow-xl">
+        <h2 id="studentSurveyTitle" class="text-2xl font-bold text-slate-800 dark:text-slate-100">Survey Title</h2>
+        <p id="studentSurveyDesc" class="text-sm text-slate-600 dark:text-slate-300 mt-2">Survey description...</p>
+        <span class="inline-block mt-3 text-xs font-semibold text-schoolGreen bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-md">
+          College of Nursing and Midwifery, Tanoso
+        </span>
+      </div>
+
+      <!-- Questions Form -->
+      <form id="studentSurveyForm" onsubmit="submitStudentSurvey(event)" class="space-y-4">
+        <div id="studentQuestionsContainer" class="space-y-4">
+          <!-- Dynamically populated questions -->
+        </div>
+
+        <button type="submit" class="w-full bg-schoolGreen hover:bg-emerald-800 text-white font-bold py-3 rounded-xl shadow-lg transition text-base">
+          Submit Survey
+        </button>
+      </form>
+    </section>
+
+    <!-- SURVEY ANALYTICS VIEW -->
+    <section id="analyticsSection" class="hidden space-y-6">
+      <div class="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-xl shadow border border-slate-200 dark:border-slate-700">
+        <button onclick="backToDashboard()" class="text-xs font-bold text-schoolGreen dark:text-emerald-400 hover:underline flex items-center gap-1">
+          ← Back to Dashboard
+        </button>
+        <div class="flex gap-2">
+          <button onclick="exportResults('excel')" class="bg-green-700 hover:bg-green-800 text-white px-3 py-1.5 rounded text-xs font-semibold">Export Excel</button>
+          <button onclick="exportResults('csv')" class="bg-blue-700 hover:bg-blue-800 text-white px-3 py-1.5 rounded text-xs font-semibold">Export CSV</button>
+          <button onclick="exportResults('word')" class="bg-amber-700 hover:bg-amber-800 text-white px-3 py-1.5 rounded text-xs font-semibold">Export Word</button>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md border border-slate-200 dark:border-slate-700">
+        <h2 id="analyticsSurveyTitle" class="text-xl font-bold text-schoolGreen dark:text-emerald-400">Survey Analytics</h2>
+        <p id="analyticsTotalResponses" class="text-xs text-slate-500 mt-1">Total Submissions: 0</p>
+      </div>
+
+      <!-- Charts & Tables Container -->
+      <div id="analyticsChartsContainer" class="space-y-6">
+        <!-- Dynamically populated charts and tables -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODALS -->
+
+  <!-- Change Password Modal -->
+  <div id="changePasswordModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+      <h3 class="text-lg font-bold mb-4 text-schoolGreen dark:text-emerald-400">Change Password</h3>
+      <form onsubmit="handleChangePassword(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold mb-1">Current Password</label>
+          <input type="password" id="currPass" required class="w-full p-2 border rounded text-xs dark:bg-slate-700">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">New Password</label>
+          <input type="password" id="newPass" required class="w-full p-2 border rounded text-xs dark:bg-slate-700">
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('changePasswordModal')" class="px-3 py-1.5 text-xs rounded bg-slate-200 dark:bg-slate-700">Cancel</button>
+          <button type="submit" class="px-3 py-1.5 text-xs rounded bg-schoolGreen text-white font-bold">Update Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Lecturer Modal (Admin Only) -->
+  <div id="addLecturerModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+      <h3 class="text-lg font-bold mb-4 text-schoolGreen dark:text-emerald-400">Create Lecturer Account</h3>
+      <form onsubmit="handleAddLecturer(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold mb-1">Full Name</label>
+          <input type="text" id="lecFullName" required class="w-full p-2 border rounded text-xs dark:bg-slate-700">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Username</label>
+          <input type="text" id="lecUsername" required class="w-full p-2 border rounded text-xs dark:bg-slate-700">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Password</label>
+          <input type="password" id="lecPassword" required class="w-full p-2 border rounded text-xs dark:bg-slate-700">
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('addLecturerModal')" class="px-3 py-1.5 text-xs rounded bg-slate-200 dark:bg-slate-700">Cancel</button>
+          <button type="submit" class="px-3 py-1.5 text-xs rounded bg-schoolGreen text-white font-bold">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Import Survey Modal (Word/Excel/CSV/PDF Text Guide) -->
+  <div id="importSurveyModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+      <h3 class="text-lg font-bold mb-2 text-schoolGreen dark:text-emerald-400">Import Questionnaire</h3>
+      <p class="text-xs text-slate-500 mb-4">Paste questionnaire text or structure from Excel/CSV/Word/PDF below.</p>
+      
+      <form onsubmit="handleImportSurvey(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold mb-1">Survey Title</label>
+          <input type="text" id="importTitle" required class="w-full p-2 border rounded text-xs dark:bg-slate-700">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Questionnaire Text (Format: Question? | Choice1, Choice2)</label>
+          <textarea id="importText" rows="6" placeholder="Example:
+How satisfied are you with clinicals? | Very Satisfied, Satisfied, Unsatisfied
+Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 border rounded text-xs dark:bg-slate-700 font-mono"></textarea>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('importSurveyModal')" class="px-3 py-1.5 text-xs rounded bg-slate-200 dark:bg-slate-700">Cancel</button>
+          <button type="submit" class="px-3 py-1.5 text-xs rounded bg-schoolGreen text-white font-bold">Import & Publish</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create Survey Modal -->
+  <div id="createSurveyModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-schoolGreen dark:text-emerald-400">Create New Survey</h3>
+      <form onsubmit="handleCreateSurvey(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold mb-1">Survey Title</label>
+          <input type="text" id="createTitle" required class="w-full p-2 border rounded text-xs dark:bg-slate-700">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Description</label>
+          <textarea id="createDesc" rows="2" class="w-full p-2 border rounded text-xs dark:bg-slate-700"></textarea>
+        </div>
+
+        <div class="border-t border-slate-200 dark:border-slate-700 pt-3">
+          <label class="block text-xs font-bold mb-2">Questions</label>
+          <div id="questionsBuilderContainer" class="space-y-3">
+            <!-- Question item template will append here -->
+          </div>
+          <button type="button" onclick="addQuestionBuilderItem()" class="mt-2 text-xs font-bold text-schoolGreen dark:text-emerald-400 hover:underline">
+            + Add Another Question
+          </button>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('createSurveyModal')" class="px-3 py-1.5 text-xs rounded bg-slate-200 dark:bg-slate-700">Cancel</button>
+          <button type="submit" class="px-3 py-1.5 text-xs rounded bg-schoolGreen text-white font-bold">Save & Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    // State Variables
+    let currentUser = null;
+    let selectedPortalRole = 'lecturer';
+    let currentAnalyticsSurvey = null;
+    let analyticsChartInstances = [];
+    let deferredPrompt = null;
+
+    // PWA Install Prompt Listener
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      document.getElementById('installHeaderBtn').classList.remove('hidden');
+      document.getElementById('pwaBanner').classList.remove('hidden');
+    });
+
+    async function installPWA() {
+      if (!deferredPrompt) {
+        alert('App installation prompt is not ready or app is already installed.');
+        return;
+      }
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        console.log('User installed the PWA application');
+      }
+      deferredPrompt = null;
+      document.getElementById('installHeaderBtn').classList.add('hidden');
+      document.getElementById('pwaBanner').classList.add('hidden');
+    }
+
+    function closePWABanner() {
+      document.getElementById('pwaBanner').classList.add('hidden');
+    }
+
+    // Local Memory Mock Databases
+    let mockProfiles = [
+      { id: '1', username: 'admin', password_hash: 'adminpassword', role: 'admin', full_name: 'System Administrator' },
+      { id: '2', username: 'lecturer1', password_hash: '123456', role: 'lecturer', full_name: 'Dr. John Doe' }
+    ];
+
+    let mockSurveys = [
+      { id: 's1', title: 'Midwifery Clinical Practicum Evaluation', description: 'Student feedback on clinical rotations', created_by: '2', is_published: true },
+      { id: 's2', title: 'Nursing Ethics Course Assessment', description: 'Course delivery evaluation', created_by: '1', is_published: false }
+    ];
+
+    let mockQuestions = [
+      { id: 'q1', survey_id: 's1', question_text: 'How would you rate the supervision at Tanoso Hospital?', question_type: 'multiple_choice', options: ['Excellent', 'Good', 'Fair', 'Poor'] },
+      { id: 'q2', survey_id: 's1', question_text: 'Would you recommend this clinical placement to junior students?', question_type: 'multiple_choice', options: ['Yes', 'No'] }
+    ];
+
+    let mockResponses = [
+      { id: 'r1', survey_id: 's1', question_id: 'q1', response_value: 'Excellent' },
+      { id: 'r2', survey_id: 's1', question_id: 'q1', response_value: 'Good' },
+      { id: 'r3', survey_id: 's1', question_id: 'q1', response_value: 'Excellent' },
+      { id: 'r4', survey_id: 's1', question_id: 'q2', response_value: 'Yes' },
+      { id: 'r5', survey_id: 's1', question_id: 'q2', response_value: 'Yes' }
+    ];
+
+    // Initialize Page
+    document.addEventListener('DOMContentLoaded', () => {
+      checkURLForStudentSurvey();
+      initQuestionBuilder();
+    });
+
+    // Theme Toggle Functionality
+    function toggleTheme() {
+      const htmlEl = document.documentElement;
+      if (htmlEl.classList.contains('dark')) {
+        htmlEl.classList.remove('dark');
+        localStorage.setItem('cnm_theme', 'light');
+        document.getElementById('themeIcon').innerText = '🌙';
+        document.getElementById('themeText').innerText = 'Dark Mode';
+      } else {
+        htmlEl.classList.add('dark');
+        localStorage.setItem('cnm_theme', 'dark');
+        document.getElementById('themeIcon').innerText = '☀️';
+        document.getElementById('themeText').innerText = 'Light Mode';
+      }
+    }
+
+    // Portal Tab Switcher
+    function switchLoginTab(role) {
+      selectedPortalRole = role;
+      const tabL = document.getElementById('tabLecturer');
+      const tabA = document.getElementById('tabAdmin');
+      if (role === 'lecturer') {
+        tabL.className = "flex-1 py-2 text-center font-semibold text-sm border-b-2 border-schoolGreen text-schoolGreen dark:text-emerald-400";
+        tabA.className = "flex-1 py-2 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-600";
+      } else {
+        tabA.className = "flex-1 py-2 text-center font-semibold text-sm border-b-2 border-schoolGreen text-schoolGreen dark:text-emerald-400";
+        tabL.className = "flex-1 py-2 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-600";
+      }
+    }
+
+    // Authentication
+    function handleLogin(e) {
+      e.preventDefault();
+      const u = document.getElementById('loginUsername').value.trim();
+      const p = document.getElementById('loginPassword').value.trim();
+
+      const found = mockProfiles.find(user => user.username === u && user.password_hash === p && user.role === selectedPortalRole);
+
+      if (found) {
+        currentUser = found;
+        document.getElementById('loginSection').classList.add('hidden');
+        document.getElementById('dashboardSection').classList.remove('hidden');
+        document.getElementById('changePassBtn').classList.remove('hidden');
+        document.getElementById('logoutBtn').classList.remove('hidden');
+
+        document.getElementById('userDisplayName').innerText = currentUser.full_name || currentUser.username;
+        document.getElementById('userRoleBadge').innerText = currentUser.role;
+
+        // Display install popup upon login if available
+        if (deferredPrompt) {
+          document.getElementById('pwaBanner').classList.remove('hidden');
+        }
+
+        if (currentUser.role === 'admin') {
+          document.getElementById('adminAddLecturerBtn').classList.remove('hidden');
+          document.getElementById('adminLecturerPanel').classList.remove('hidden');
+          renderLecturersTable();
+        } else {
+          document.getElementById('adminAddLecturerBtn').classList.add('hidden');
+          document.getElementById('adminLecturerPanel').classList.add('hidden');
+        }
+
+        renderSurveys();
+      } else {
+        alert('Invalid Username or Password for selected portal.');
+      }
+    }
+
+    function logout() {
+      currentUser = null;
+      document.getElementById('loginSection').classList.remove('hidden');
+      document.getElementById('dashboardSection').classList.add('hidden');
+      document.getElementById('analyticsSection').classList.add('hidden');
+      document.getElementById('studentSurveySection').classList.add('hidden');
+      document.getElementById('changePassBtn').classList.add('hidden');
+      document.getElementById('logoutBtn').classList.add('hidden');
+    }
+
+    function handleChangePassword(e) {
+      e.preventDefault();
+      const curr = document.getElementById('currPass').value;
+      const next = document.getElementById('newPass').value;
+
+      if (currentUser.password_hash === curr) {
+        currentUser.password_hash = next;
+        alert('Password updated successfully!');
+        closeModal('changePasswordModal');
+      } else {
+        alert('Current password does not match.');
+      }
+    }
+
+    // Admin Lecturer Management
+    function renderLecturersTable() {
+      const tbody = document.getElementById('lecturerTableBody');
+      tbody.innerHTML = '';
+      const lecturers = mockProfiles.filter(p => p.role === 'lecturer');
+
+      lecturers.forEach(lec => {
+        const tr = document.createElement('tr');
+        tr.className = "border-b border-slate-100 dark:border-slate-700/50";
+        tr.innerHTML = `
+          <td class="py-2 px-3">${lec.full_name}</td>
+          <td class="py-2 px-3">${lec.username}</td>
+          <td class="py-2 px-3 text-right">
+            <button onclick="deleteLecturer('${lec.id}')" class="text-red-600 hover:text-red-800 font-bold">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function handleAddLecturer(e) {
+      e.preventDefault();
+      const fn = document.getElementById('lecFullName').value;
+      const un = document.getElementById('lecUsername').value;
+      const pw = document.getElementById('lecPassword').value;
+
+      mockProfiles.push({ id: Date.now().toString(), username: un, password_hash: pw, role: 'lecturer', full_name: fn });
+      alert('Lecturer account created!');
+      closeModal('addLecturerModal');
+      renderLecturersTable();
+    }
+
+    function deleteLecturer(id) {
+      if (confirm('Are you sure you want to delete this lecturer account?')) {
+        mockProfiles = mockProfiles.filter(p => p.id !== id);
+        renderLecturersTable();
+      }
+    }
+
+    // Survey Render & Management
+    function renderSurveys() {
+      const container = document.getElementById('surveysListContainer');
+      container.innerHTML = '';
+
+      const visibleSurveys = currentUser.role === 'admin' 
+        ? mockSurveys 
+        : mockSurveys.filter(s => s.created_by === currentUser.id);
+
+      if (visibleSurveys.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 col-span-3 py-4">No surveys found. Click 'Create Survey' or 'Import Questionnaire' to begin.</p>`;
+        return;
+      }
+
+      visibleSurveys.forEach(survey => {
+        const card = document.createElement('div');
+        card.className = "bg-slate-50 dark:bg-slate-700/40 p-4 rounded-xl border border-slate-200 dark:border-slate-600 flex flex-col justify-between";
+        
+        const studentLink = `${window.location.origin}${window.location.pathname}?survey_id=${survey.id}`;
+
+        card.innerHTML = `
+          <div>
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-[10px] font-extrabold px-2 py-0.5 rounded ${survey.is_published ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                ${survey.is_published ? 'Published' : 'Unpublished'}
+              </span>
+              <button onclick="togglePublish('${survey.id}')" class="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white">
+                ${survey.is_published ? 'Unpublish' : 'Publish'}
+              </button>
+            </div>
+            <h4 class="font-bold text-sm text-slate-800 dark:text-slate-100">${survey.title}</h4>
+            <p class="text-xs text-slate-500 dark:text-slate-300 mt-1 line-clamp-2">${survey.description || 'No description provided.'}</p>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-600/50 flex flex-col gap-2">
+            <button onclick="copyStudentLink('${studentLink}')" class="w-full bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 text-slate-800 dark:text-slate-100 py-1.5 rounded text-xs font-semibold flex items-center justify-center gap-1">
+              🔗 Copy Student Link
+            </button>
+            <button onclick="viewAnalytics('${survey.id}')" class="w-full bg-schoolGreen hover:bg-emerald-800 text-white py-1.5 rounded text-xs font-semibold">
+              📊 View Analytics & Results
+            </button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function togglePublish(surveyId) {
+      const target = mockSurveys.find(s => s.id === surveyId);
+      if (target) {
+        target.is_published = !target.is_published;
+        renderSurveys();
+      }
+    }
+
+    function copyStudentLink(link) {
+      navigator.clipboard.writeText(link);
+      alert('Student survey link copied to clipboard!\n\n' + link);
+    }
+
+    // Direct Student Link Access Logic
+    function checkURLForStudentSurvey() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const surveyId = urlParams.get('survey_id');
+
+      if (surveyId) {
+        const survey = mockSurveys.find(s => s.id === surveyId && s.is_published);
+        if (survey) {
+          document.getElementById('loginSection').classList.add('hidden');
+          document.getElementById('studentSurveySection').classList.remove('hidden');
+          renderStudentSurveyView(survey);
+        } else {
+          alert('Survey not available or unpublished.');
+        }
+      }
+    }
+
+    function renderStudentSurveyView(survey) {
+      document.getElementById('studentSurveyTitle').innerText = survey.title;
+      document.getElementById('studentSurveyDesc').innerText = survey.description || '';
+
+      const container = document.getElementById('studentQuestionsContainer');
+      container.innerHTML = '';
+
+      const surveyQuestions = mockQuestions.filter(q => q.survey_id === survey.id);
+
+      surveyQuestions.forEach((q, idx) => {
+        const card = document.createElement('div');
+        card.className = "bg-white dark:bg-slate-800 p-5 rounded-xl shadow border border-slate-200 dark:border-slate-700";
+
+        let optionsHTML = '';
+        if (q.question_type === 'multiple_choice' && q.options) {
+          optionsHTML = q.options.map(opt => `
+            <label class="flex items-center gap-2 p-2 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer text-xs">
+              <input type="radio" name="q_${q.id}" value="${opt}" required class="text-schoolGreen focus:ring-schoolGreen">
+              <span>${opt}</span>
+            </label>
+          `).join('');
+        } else {
+          optionsHTML = `<textarea name="q_${q.id}" required rows="3" class="w-full p-2.5 border rounded-lg text-xs dark:bg-slate-700" placeholder="Type your response..."></textarea>`;
+        }
+
+        card.innerHTML = `
+          <p class="font-bold text-sm mb-3 text-slate-800 dark:text-slate-100">${idx + 1}. ${q.question_text}</p>
+          <div class="space-y-2">${optionsHTML}</div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function submitStudentSurvey(e) {
+      e.preventDefault();
+      const urlParams = new URLSearchParams(window.location.search);
+      const surveyId = urlParams.get('survey_id');
+
+      const formData = new FormData(e.target);
+      for (let [key, val] of formData.entries()) {
+        const questionId = key.replace('q_', '');
+        mockResponses.push({
+          id: Date.now().toString() + Math.random(),
+          survey_id: surveyId,
+          question_id: questionId,
+          response_value: val
+        });
+      }
+
+      alert('Thank you! Your survey response has been submitted successfully.');
+      window.location.href = window.location.origin + window.location.pathname;
+    }
+
+    // Analytics View
+    function viewAnalytics(surveyId) {
+      currentAnalyticsSurvey = mockSurveys.find(s => s.id === surveyId);
+      document.getElementById('dashboardSection').classList.add('hidden');
+      document.getElementById('analyticsSection').classList.remove('hidden');
+
+      document.getElementById('analyticsSurveyTitle').innerText = `${currentAnalyticsSurvey.title} - Analytics`;
+
+      const surveyQuestions = mockQuestions.filter(q => q.survey_id === surveyId);
+      const surveyResponses = mockResponses.filter(r => r.survey_id === surveyId);
+
+      document.getElementById('analyticsTotalResponses').innerText = `Total Responses Received: ${new Set(surveyResponses.map(r => r.id)).size || surveyResponses.length}`;
+
+      const container = document.getElementById('analyticsChartsContainer');
+      container.innerHTML = '';
+      analyticsChartInstances.forEach(c => c.destroy());
+      analyticsChartInstances = [];
+
+      surveyQuestions.forEach((q, idx) => {
+        const qResponses = surveyResponses.filter(r => r.question_id === q.id);
+        const card = document.createElement('div');
+        card.className = "bg-white dark:bg-slate-800 p-5 rounded-xl shadow border border-slate-200 dark:border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-6 items-center";
+
+        const counts = {};
+        if (q.options) {
+          q.options.forEach(opt => counts[opt] = 0);
+        }
+        qResponses.forEach(r => {
+          counts[r.response_value] = (counts[r.response_value] || 0) + 1;
+        });
+
+        const labels = Object.keys(counts);
+        const dataValues = Object.values(counts);
+
+        let tableRows = labels.map(l => `
+          <tr class="border-b border-slate-100 dark:border-slate-700 text-xs">
+            <td class="py-1.5">${l}</td>
+            <td class="py-1.5 text-right font-bold">${counts[l]}</td>
+          </tr>
+        `).join('');
+
+        card.innerHTML = `
+          <div>
+            <h4 class="font-bold text-sm mb-3">${idx + 1}. ${q.question_text}</h4>
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="text-xs text-slate-400 border-b border-slate-200">
+                  <th class="py-1">Option</th>
+                  <th class="py-1 text-right">Count</th>
+                </tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+          </div>
+          <div class="h-48 relative">
+            <canvas id="chart_${q.id}"></canvas>
+          </div>
+        `;
+        container.appendChild(card);
+
+        setTimeout(() => {
+          const ctx = document.getElementById(`chart_${q.id}`).getContext('2d');
+          const newChart = new Chart(ctx, {
+            type: idx % 2 === 0 ? 'pie' : 'bar',
+            data: {
+              labels: labels,
+              datasets: [{
+                data: dataValues,
+                backgroundColor: ['#006B3F', '#10B981', '#3B82F6', '#F59E0B', '#EF4444']
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { position: 'bottom' } }
+            }
+          });
+          analyticsChartInstances.push(newChart);
+        }, 50);
+      });
+    }
+
+    function backToDashboard() {
+      document.getElementById('analyticsSection').classList.add('hidden');
+      document.getElementById('dashboardSection').classList.remove('hidden');
+    }
+
+    // Export Functionality
+    function exportResults(type) {
+      if (!currentAnalyticsSurvey) return;
+
+      const surveyQuestions = mockQuestions.filter(q => q.survey_id === currentAnalyticsSurvey.id);
+      const surveyResponses = mockResponses.filter(r => r.survey_id === currentAnalyticsSurvey.id);
+
+      let exportData = surveyQuestions.map(q => {
+        const qResponses = surveyResponses.filter(r => r.question_id === q.id);
+        return {
+          Question: q.question_text,
+          Total_Responses: qResponses.length,
+          Answers: qResponses.map(r => r.response_value).join(' | ')
+        };
+      });
+
+      if (type === 'excel') {
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Survey Results");
+        XLSX.writeFile(wb, `${currentAnalyticsSurvey.title}_Results.xlsx`);
+      } else if (type === 'csv') {
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${currentAnalyticsSurvey.title}_Results.csv`;
+        link.click();
+      } else if (type === 'word') {
+        let content = `College of Nursing and Midwifery, Tanoso\nSurvey Results: ${currentAnalyticsSurvey.title}\n\n`;
+        exportData.forEach(d => {
+          content += `Question: ${d.Question}\nTotal Responses: ${d.Total_Responses}\nResponses: ${d.Answers}\n\n`;
+        });
+        const blob = new Blob([content], { type: 'application/msword' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${currentAnalyticsSurvey.title}_Results.doc`;
+        link.click();
+      }
+    }
+
+    // Builder & Import
+    function initQuestionBuilder() {
+      const container = document.getElementById('questionsBuilderContainer');
+      container.innerHTML = '';
+      addQuestionBuilderItem();
+    }
+
+    function addQuestionBuilderItem() {
+      const container = document.getElementById('questionsBuilderContainer');
+      const div = document.createElement('div');
+      div.className = "p-3 border rounded-lg bg-slate-50 dark:bg-slate-700/50 space-y-2";
+      div.innerHTML = `
+        <input type="text" placeholder="Question text" required class="q-title w-full p-1.5 text-xs border rounded dark:bg-slate-700">
+        <input type="text" placeholder="Options separated by commas (e.g. Excellent, Good, Poor)" class="q-options w-full p-1.5 text-xs border rounded dark:bg-slate-700">
+      `;
+      container.appendChild(div);
+    }
+
+    function handleCreateSurvey(e) {
+      e.preventDefault();
+      const title = document.getElementById('createTitle').value;
+      const desc = document.getElementById('createDesc').value;
+
+      const surveyId = 's_' + Date.now();
+      mockSurveys.push({
+        id: surveyId,
+        title: title,
+        description: desc,
+        created_by: currentUser.id,
+        is_published: true
+      });
+
+      const qNodes = document.querySelectorAll('#questionsBuilderContainer > div');
+      qNodes.forEach((node, idx) => {
+        const qTitle = node.querySelector('.q-title').value;
+        const qOptRaw = node.querySelector('.q-options').value;
+        const options = qOptRaw ? qOptRaw.split(',').map(o => o.trim()) : ['Agree', 'Disagree'];
+
+        mockQuestions.push({
+          id: 'q_' + Date.now() + idx,
+          survey_id: surveyId,
+          question_text: qTitle,
+          question_type: 'multiple_choice',
+          options: options
+        });
+      });
+
+      alert('Survey created successfully!');
+      closeModal('createSurveyModal');
+      renderSurveys();
+    }
+
+    function handleImportSurvey(e) {
+      e.preventDefault();
+      const title = document.getElementById('importTitle').value;
+      const text = document.getElementById('importText').value;
+
+      const surveyId = 's_imp_' + Date.now();
+      mockSurveys.push({
+        id: surveyId,
+        title: title,
+        description: 'Imported questionnaire',
+        created_by: currentUser.id,
+        is_published: true
+      });
+
+      const lines = text.split('\n').filter(l => l.trim().length > 0);
+      lines.forEach((line, idx) => {
+        const parts = line.split('|');
+        const qText = parts[0].trim();
+        const options = parts[1] ? parts[1].split(',').map(o => o.trim()) : ['Yes', 'No'];
+
+        mockQuestions.push({
+          id: 'q_imp_' + Date.now() + idx,
+          survey_id: surveyId,
+          question_text: qText,
+          question_type: 'multiple_choice',
+          options: options
+        });
+      });
+
+      alert('Questionnaire imported and survey published!');
+      closeModal('importSurveyModal');
+      renderSurveys();
+    }
+
+    // Modal Helpers
+    function showChangePasswordModal() { document.getElementById('changePasswordModal').classList.remove('hidden'); }
+    function showAddLecturerModal() { document.getElementById('addLecturerModal').classList.remove('hidden'); }
+    function showImportSurveyModal() { document.getElementById('importSurveyModal').classList.remove('hidden'); }
+    function showCreateSurveyModal() { document.getElementById('createSurveyModal').classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    function navigateToHome() { window.location.href = window.location.origin + window.location.pathname; }
+  </script>
+</body>
+</html>
