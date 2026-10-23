@@ -296,11 +296,11 @@
     </div>
   </div>
 
-  <!-- Import Survey Modal (Word/Excel/CSV/PDF Text Guide) -->
+  <!-- Import Survey Modal -->
   <div id="importSurveyModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white dark:bg-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
       <h3 class="text-lg font-bold mb-2 text-schoolGreen dark:text-emerald-400">Import Questionnaire</h3>
-      <p class="text-xs text-slate-500 mb-4">Paste questionnaire text or structure from Excel/CSV/Word/PDF below.</p>
+      <p class="text-xs text-slate-500 mb-4">Paste questionnaire text below (Format: Question | Choice1, Choice2).</p>
       
       <form onsubmit="handleImportSurvey(event)" class="space-y-3">
         <div>
@@ -308,7 +308,7 @@
           <input type="text" id="importTitle" required class="w-full p-2 border rounded text-xs dark:bg-slate-700">
         </div>
         <div>
-          <label class="block text-xs font-semibold mb-1">Questionnaire Text (Format: Question? | Choice1, Choice2)</label>
+          <label class="block text-xs font-semibold mb-1">Questionnaire Text</label>
           <textarea id="importText" rows="6" placeholder="Example:
 How satisfied are you with clinicals? | Very Satisfied, Satisfied, Unsatisfied
 Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 border rounded text-xs dark:bg-slate-700 font-mono"></textarea>
@@ -338,7 +338,7 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
         <div class="border-t border-slate-200 dark:border-slate-700 pt-3">
           <label class="block text-xs font-bold mb-2">Questions</label>
           <div id="questionsBuilderContainer" class="space-y-3">
-            <!-- Question item template will append here -->
+            <!-- Question items append here -->
           </div>
           <button type="button" onclick="addQuestionBuilderItem()" class="mt-2 text-xs font-bold text-schoolGreen dark:text-emerald-400 hover:underline">
             + Add Another Question
@@ -347,7 +347,7 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
 
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" onclick="closeModal('createSurveyModal')" class="px-3 py-1.5 text-xs rounded bg-slate-200 dark:bg-slate-700">Cancel</button>
-          <button type="submit" class="px-3 py-1.5 text-xs rounded bg-schoolGreen text-white font-bold">Save & Create</button>
+          <button type="submit" class="px-3 py-1.5 text-xs rounded bg-schoolGreen text-white font-bold">Save & Publish</button>
         </div>
       </form>
     </div>
@@ -355,7 +355,46 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
 
   <!-- JAVASCRIPT LOGIC -->
   <script>
-    // State Variables
+    // Persistent Storage Helpers
+    function getStoredData(key, fallback) {
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : fallback;
+    }
+
+    function setStoredData(key, value) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+
+    // Default Initial Mock Data
+    const defaultSurveys = [
+      { id: 's1', title: 'Midwifery Clinical Practicum Evaluation', description: 'Student feedback on clinical rotations', created_by: '2', is_published: true },
+      { id: 's2', title: 'Nursing Ethics Course Assessment', description: 'Course delivery evaluation', created_by: '1', is_published: true }
+    ];
+
+    const defaultQuestions = [
+      { id: 'q1', survey_id: 's1', question_text: 'How would you rate the supervision at Tanoso Hospital?', question_type: 'multiple_choice', options: ['Excellent', 'Good', 'Fair', 'Poor'] },
+      { id: 'q2', survey_id: 's1', question_text: 'Would you recommend this clinical placement to junior students?', question_type: 'multiple_choice', options: ['Yes', 'No'] }
+    ];
+
+    const defaultResponses = [
+      { id: 'r1', survey_id: 's1', question_id: 'q1', response_value: 'Excellent' },
+      { id: 'r2', survey_id: 's1', question_id: 'q1', response_value: 'Good' },
+      { id: 'r3', survey_id: 's1', question_id: 'q1', response_value: 'Excellent' },
+      { id: 'r4', survey_id: 's1', question_id: 'q2', response_value: 'Yes' },
+      { id: 'r5', survey_id: 's1', question_id: 'q2', response_value: 'Yes' }
+    ];
+
+    const defaultProfiles = [
+      { id: '1', username: 'admin', password_hash: 'adminpassword', role: 'admin', full_name: 'System Administrator' },
+      { id: '2', username: 'lecturer1', password_hash: '123456', role: 'lecturer', full_name: 'Dr. John Doe' }
+    ];
+
+    // Load persistent state from localStorage
+    let mockSurveys = getStoredData('cnm_surveys', defaultSurveys);
+    let mockQuestions = getStoredData('cnm_questions', defaultQuestions);
+    let mockResponses = getStoredData('cnm_responses', defaultResponses);
+    let mockProfiles = getStoredData('cnm_profiles', defaultProfiles);
+
     let currentUser = null;
     let selectedPortalRole = 'lecturer';
     let currentAnalyticsSurvey = null;
@@ -378,7 +417,7 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
-        console.log('User installed the PWA application');
+        console.log('User installed PWA application');
       }
       deferredPrompt = null;
       document.getElementById('installHeaderBtn').classList.add('hidden');
@@ -388,30 +427,6 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
     function closePWABanner() {
       document.getElementById('pwaBanner').classList.add('hidden');
     }
-
-    // Local Memory Mock Databases
-    let mockProfiles = [
-      { id: '1', username: 'admin', password_hash: 'adminpassword', role: 'admin', full_name: 'System Administrator' },
-      { id: '2', username: 'lecturer1', password_hash: '123456', role: 'lecturer', full_name: 'Dr. John Doe' }
-    ];
-
-    let mockSurveys = [
-      { id: 's1', title: 'Midwifery Clinical Practicum Evaluation', description: 'Student feedback on clinical rotations', created_by: '2', is_published: true },
-      { id: 's2', title: 'Nursing Ethics Course Assessment', description: 'Course delivery evaluation', created_by: '1', is_published: false }
-    ];
-
-    let mockQuestions = [
-      { id: 'q1', survey_id: 's1', question_text: 'How would you rate the supervision at Tanoso Hospital?', question_type: 'multiple_choice', options: ['Excellent', 'Good', 'Fair', 'Poor'] },
-      { id: 'q2', survey_id: 's1', question_text: 'Would you recommend this clinical placement to junior students?', question_type: 'multiple_choice', options: ['Yes', 'No'] }
-    ];
-
-    let mockResponses = [
-      { id: 'r1', survey_id: 's1', question_id: 'q1', response_value: 'Excellent' },
-      { id: 'r2', survey_id: 's1', question_id: 'q1', response_value: 'Good' },
-      { id: 'r3', survey_id: 's1', question_id: 'q1', response_value: 'Excellent' },
-      { id: 'r4', survey_id: 's1', question_id: 'q2', response_value: 'Yes' },
-      { id: 'r5', survey_id: 's1', question_id: 'q2', response_value: 'Yes' }
-    ];
 
     // Initialize Page
     document.addEventListener('DOMContentLoaded', () => {
@@ -467,7 +482,6 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
         document.getElementById('userDisplayName').innerText = currentUser.full_name || currentUser.username;
         document.getElementById('userRoleBadge').innerText = currentUser.role;
 
-        // Display install popup upon login if available
         if (deferredPrompt) {
           document.getElementById('pwaBanner').classList.remove('hidden');
         }
@@ -504,6 +518,7 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
 
       if (currentUser.password_hash === curr) {
         currentUser.password_hash = next;
+        setStoredData('cnm_profiles', mockProfiles);
         alert('Password updated successfully!');
         closeModal('changePasswordModal');
       } else {
@@ -538,6 +553,7 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
       const pw = document.getElementById('lecPassword').value;
 
       mockProfiles.push({ id: Date.now().toString(), username: un, password_hash: pw, role: 'lecturer', full_name: fn });
+      setStoredData('cnm_profiles', mockProfiles);
       alert('Lecturer account created!');
       closeModal('addLecturerModal');
       renderLecturersTable();
@@ -546,6 +562,7 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
     function deleteLecturer(id) {
       if (confirm('Are you sure you want to delete this lecturer account?')) {
         mockProfiles = mockProfiles.filter(p => p.id !== id);
+        setStoredData('cnm_profiles', mockProfiles);
         renderLecturersTable();
       }
     }
@@ -601,6 +618,7 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
       const target = mockSurveys.find(s => s.id === surveyId);
       if (target) {
         target.is_published = !target.is_published;
+        setStoredData('cnm_surveys', mockSurveys);
         renderSurveys();
       }
     }
@@ -616,8 +634,11 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
       const surveyId = urlParams.get('survey_id');
 
       if (surveyId) {
-        const survey = mockSurveys.find(s => s.id === surveyId && s.is_published);
-        if (survey) {
+        // Retrieve fresh stored surveys list
+        const activeSurveys = getStoredData('cnm_surveys', defaultSurveys);
+        const survey = activeSurveys.find(s => s.id === surveyId);
+
+        if (survey && survey.is_published) {
           document.getElementById('loginSection').classList.add('hidden');
           document.getElementById('studentSurveySection').classList.remove('hidden');
           renderStudentSurveyView(survey);
@@ -634,7 +655,8 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
       const container = document.getElementById('studentQuestionsContainer');
       container.innerHTML = '';
 
-      const surveyQuestions = mockQuestions.filter(q => q.survey_id === survey.id);
+      const activeQuestions = getStoredData('cnm_questions', defaultQuestions);
+      const surveyQuestions = activeQuestions.filter(q => q.survey_id === survey.id);
 
       surveyQuestions.forEach((q, idx) => {
         const card = document.createElement('div');
@@ -676,6 +698,7 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
         });
       }
 
+      setStoredData('cnm_responses', mockResponses);
       alert('Thank you! Your survey response has been submitted successfully.');
       window.location.href = window.location.origin + window.location.pathname;
     }
@@ -856,7 +879,10 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
         });
       });
 
-      alert('Survey created successfully!');
+      setStoredData('cnm_surveys', mockSurveys);
+      setStoredData('cnm_questions', mockQuestions);
+
+      alert('Survey created and published successfully!');
       closeModal('createSurveyModal');
       renderSurveys();
     }
@@ -889,6 +915,9 @@ Rate the library resources? | Excellent, Good, Poor" required class="w-full p-2 
           options: options
         });
       });
+
+      setStoredData('cnm_surveys', mockSurveys);
+      setStoredData('cnm_questions', mockQuestions);
 
       alert('Questionnaire imported and survey published!');
       closeModal('importSurveyModal');
